@@ -5,6 +5,7 @@ import 'package:flutter_firebase_day1/pages/home_page.dart';
 import 'package:flutter_firebase_day1/pages/login_page.dart';
 import 'package:flutter_firebase_day1/pages/profile_page.dart';
 import 'package:flutter_firebase_day1/pages/register_page.dart';
+import 'package:flutter_firebase_day1/pages/splash_screen.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -35,22 +36,23 @@ class _MyAppState extends State<MyApp> {
   //   super.initState();
   // }
 
-  Widget checkUserState () {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null){
-      return HomePage();
-    }else{
-      return LoginPage();
-    }
-}
+  // Widget checkUserState () {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user != null){
+  //     return HomePage();
+  //   }else{
+  //     return SplashScreen();
+  //   }
+// }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Firebase',
-      home: checkUserState(),
+      home: SplashScreen(),
       routes: {
+        '/splash' : (context) => SplashScreen(),
         '/home': (context) => HomePage(),
         '/login': (context) => LoginPage(),
         '/register': (context) => RegisterPage(),
