@@ -77,6 +77,9 @@ class ProfileScreen extends StatelessWidget {
                                   postData['text'] ?? '', 
                                   style: const TextStyle(fontSize: 16)
                                 ),
+                                
+                                const SizedBox(height: 12),
+                                
                                 const SizedBox(height: 12),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -227,7 +230,7 @@ class ProfilePic extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           const CircleAvatar(
-            backgroundImage: NetworkImage("https://i.postimg.cc/0jqKB6mS/Profile-Image.png"),
+            backgroundImage: NetworkImage("https://images.unsplash.com/photo-1668293750324-bd77c1f08ca9?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NDN8fGFuaW1lfGVufDB8fDB8fHww"),
           ),
           Positioned(
             right: -16,

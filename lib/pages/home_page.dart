@@ -1,10 +1,18 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_firebase_day1/widget/search_deleg.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 
+Uint8List? _pickedImageBytes;
+String? _base64Image;
+File? _selectedImage;
+final ImagePicker _picker = ImagePicker();
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,10 +25,12 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController _postTextController = TextEditingController();
   final TextEditingController _commentController = TextEditingController();
   String? _commentPostId;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Firebase", ),
+      appBar: AppBar(
+        title: Text("Firebase"),
         actions: [
           IconButton(
             icon: Icon(Icons.search),
@@ -32,7 +42,8 @@ class _HomePageState extends State<HomePage> {
             onPressed: () => _showAddPostBottomSheet(context),
             icon: const Icon(Icons.add),
           ),
-        ],backgroundColor: Colors.orangeAccent,
+        ],
+        backgroundColor: Colors.orangeAccent,
       ),
       drawer: Drawer(
         child: ListView(
@@ -49,7 +60,7 @@ class _HomePageState extends State<HomePage> {
             ListTile(
               title: Text("Profile"),
               leading: Icon(Icons.person),
-              onTap: (){
+              onTap: () {
                 Navigator.of(context).pushNamed("/profile");
               },
             ),
@@ -99,7 +110,6 @@ class _HomePageState extends State<HomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      /// User name
                       Text(
                         data['userName'] ?? 'Unknown User',
                         style: const TextStyle(
@@ -107,22 +117,28 @@ class _HomePageState extends State<HomePage> {
                           fontSize: 15,
                         ),
                       ),
-
                       const SizedBox(height: 6),
-
-                      /// Post text
                       Text(
                         data['text'] ?? '',
                         style: const TextStyle(fontSize: 14),
                       ),
-
+                      if ((data['imageBase64'] ?? '').isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.memory(
+                              base64Decode(data['imageBase64']),
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 12),
-
-                      /// Like and comment buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          /// Like button
                           Row(
                             children: [
                               IconButton(
@@ -137,10 +153,8 @@ class _HomePageState extends State<HomePage> {
                               Text('${(data['likes'] ?? []).length} Likes'),
                             ],
                           ),
-
-                          /// Comment count
                           TextButton.icon(
-                            onPressed:() => _showCommentBottomSheet(context, postId),
+                            onPressed: () => _showCommentBottomSheet(context, postId),
                             icon: const Icon(Icons.comment_outlined),
                             label: Text('${data['commentCount'] ?? 0} Comments'),
                           ),
@@ -188,51 +202,118 @@ class _HomePageState extends State<HomePage> {
           right: 16,
           top: 24,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _postTextController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: "Write something...",
-                border: OutlineInputBorder(),
+        child: StatefulBuilder(
+          builder: (context, setModalState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _postTextController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: "Write something...",
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () async {
-                final text = _postTextController.text.trim();
-                if (text.isEmpty) return;
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  try {
+                    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+                    if (pickedFile == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('No image selected')),
+                      );
+                      return;
+                    }
+                    final bytes = await pickedFile.readAsBytes();
+                    setState(() {
+                      _base64Image = base64Encode(bytes);
+                      _pickedImageBytes = bytes;
+                    });
+                    setModalState(() {});
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error picking image: $e')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.image),
+                label: const Text("Pick Image"),
+              ),
+              if (_pickedImageBytes != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Image.memory(
+                    _pickedImageBytes!,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final text = _postTextController.text.trim();
+                  if (text.isEmpty && _base64Image == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Post cannot be empty')),
+                    );
+                    return;
+                  }
 
-                final currentUser = FirebaseAuth.instance.currentUser;
+                  try {
+                    final currentUser = FirebaseAuth.instance.currentUser;
+                    if (currentUser == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('You must be logged in to post')),
+                      );
+                      Navigator.of(context).pushReplacementNamed("/login");
+                      return;
+                    }
 
-                final userId = FirebaseAuth.instance.currentUser!.uid;
+                    final userId = currentUser.uid;
+                    final userDoc = await FirebaseFirestore.instance
+                        .collection("users")
+                        .doc(userId)
+                        .get();
 
-                DocumentSnapshot userDoc = await FirebaseFirestore.instance
-                    .collection("users")
-                    .doc(userId)
-                    .get();
+                    if (!userDoc.exists || userDoc.data() == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('User data not found')),
+                      );
+                      return;
+                    }
 
-                final userData = userDoc.data() as Map<String, dynamic>;
+                    final userData = userDoc.data() as Map<String, dynamic>;
 
-                await FirebaseFirestore.instance.collection('posts').add({
-                  'uid': userId,
-                  'text': text,
-                  'userName': userData["name"] ?? 'anonymous',
-                  'likes': [],
-                  'commentCount': 0,
-                  'createdAt': Timestamp.now(),
-                });
+                    await FirebaseFirestore.instance.collection('posts').add({
+                      'uid': userId,
+                      'text': text,
+                      'imageBase64': _base64Image ?? '',
+                      'userName': userData["name"] ?? 'anonymous',
+                      'likes': [],
+                      'commentCount': 0,
+                      'createdAt': Timestamp.now(),
+                    });
 
-                _postTextController.clear();
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.send),
-              label: const Text("Add Post"),
-            ),
-            const SizedBox(height: 16),
-          ],
+                    _postTextController.clear();
+                    setState(() {
+                      _base64Image = null;
+                      _pickedImageBytes = null;
+                    });
+                    Navigator.pop(context);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error adding post: $e')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.send),
+                label: const Text("Add Post"),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -265,8 +346,6 @@ class _HomePageState extends State<HomePage> {
                 final commentText = _commentController.text.trim();
                 if (commentText.isEmpty || _commentPostId == null) return;
 
-                // final currentUser = FirebaseAuth.instance.currentUser;
-                // final userId = currentUser!.uid;
                 final userId = FirebaseAuth.instance.currentUser!.uid;
 
                 DocumentSnapshot userDoc = await FirebaseFirestore.instance
@@ -302,8 +381,6 @@ class _HomePageState extends State<HomePage> {
               label: const Text("Add Comment"),
             ),
             const SizedBox(height: 16),
-
-            /// ✅ Display comments
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -321,7 +398,6 @@ class _HomePageState extends State<HomePage> {
 
                   return ListView.builder(
                     shrinkWrap: true,
-                    // physics: const NeverScrollableScrollPhysics(),
                     itemCount: comments.length,
                     itemBuilder: (context, index) {
                       final data = comments[index].data() as Map<String, dynamic>;
@@ -340,8 +416,4 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
 }
-
-
-
